@@ -148,6 +148,7 @@ class AsyncRPCIntelligentRouter:
                 self.last_seen[backend_identity] = time.time()
                 if backend_identity not in self.tag_to_identity:
                     self.tag_to_identity[backend_identity] = backend_id
+                    logger.info(f"🤝[RPC Router] Registered Well Again: {backend_identity}")
 
         # 3️⃣ Business Response
         else:

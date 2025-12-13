@@ -6,6 +6,7 @@ import zmq.asyncio
 import asyncio
 
 from loguru import logger
+from pydantic import BaseModel
 
 from aitrados_api.trade_middleware.backend_service import BackendService
 from aitrados_api.trade_middleware.client_adresss_detector import BackendAddressDetector, IntelligentRouterContext
@@ -102,7 +103,18 @@ class AsyncBackendResponseMixin(ABC):
         params_dict=json.loads(params)
         args=params_dict.get("args",[])
         kwargs=params_dict.get("kwargs", {})
+
+
         response= await self.backend_service.a_accept(function_name, *args, **kwargs)
         if not response:
             raise Exception(f"RPC response can not be None: {self.backend_identity.decode()}.{function_name}({args},{kwargs})")
+
+        # Serialize response
+        if  isinstance(response,BaseModel):
+            response=response.model_dump_json()
+        elif not isinstance(response, list|dict):
+            response=json.dumps(response,default=str)
+        if not isinstance(response,str):
+            response=str(response)
+
         return response

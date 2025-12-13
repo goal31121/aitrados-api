@@ -17,6 +17,10 @@ class AsyncPublisher:
         self.socket=None
         self.is_common_ctx=False
         self._lock=threading.Lock()
+        try:
+            self.send_topic(b"fake_topic", b"fake_content")  # when first init,so we send a test content.
+        except Exception as e:
+            pass
     async def _instance(self):
         with self._lock:
             self.addr=addr = SubAddressDetector.get_cached_type(is_async_context=True)#

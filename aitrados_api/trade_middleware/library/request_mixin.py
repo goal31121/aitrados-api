@@ -131,8 +131,12 @@ AitradosTradeMiddlewareInstance.run_all()
             logger.error(f"[Client] call_sync failed: {e}")
             raise
         finally:
-            socket.close()
-            ctx.term()
+            try:
+                socket.setsockopt(zmq.LINGER, 0)
+                socket.close()
+                ctx.term()
+            except:
+                pass
 
     @classmethod
     def call_async(cls, backend_identity: str, function_name: str | enum.Enum,
