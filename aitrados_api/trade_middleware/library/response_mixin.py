@@ -108,7 +108,8 @@ class AsyncBackendResponseMixin(ABC):
         response= await self.backend_service.a_accept(function_name, *args, **kwargs)
         if not response:
             raise Exception(f"RPC response can not be None: {self.backend_identity.decode()}.{function_name}({args},{kwargs})")
-
+        if isinstance(response,str):
+            return response
         # Serialize response
         if  isinstance(response,BaseModel):
             response=response.model_dump_json()
