@@ -1,6 +1,7 @@
 import threading
 import time
-
+from aitrados_api.common_lib.common import load_env_file
+load_env_file(file=None, override=True)
 from aitrados_api.common_lib.common import run_asynchronous_function
 from aitrados_api.common_lib.response_format import ErrorResponse, UnifiedResponse
 from aitrados_api.trade_middleware.backend_service import BackendService

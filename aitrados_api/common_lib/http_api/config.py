@@ -47,7 +47,14 @@ class RateLimitConfig(BaseModel):
 
 class ClientConfig(BaseModel):
     """Base client configuration for Dataset Data API"""
-
+    """
+        max_retries=1000,
+    rate_limit=RateLimitConfig(
+        daily_limit=100000,
+        requests_per_second=2,
+        requests_per_minute=30
+    ),
+    """
     # Configure model
     model_config = ConfigDict(
         str_strip_whitespace=True,

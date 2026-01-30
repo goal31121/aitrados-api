@@ -1,5 +1,6 @@
 import enum
 import json
+import os
 import traceback
 from abc import ABC
 from time import sleep
@@ -10,16 +11,43 @@ from loguru import logger
 
 from aitrados_api.common_lib.common import run_asynchronous_function
 from aitrados_api.common_lib.run_utils import *
+from aitrados_api.trade_middleware.request import FrontendRequest
 from aitrados_api.trade_middleware.trade_middleware_utils import set_pubsub_heartbeat_options
 from aitrados_api.trade_middleware.client_adresss_detector import PubAddressDetector
 
 
 class AsyncSubscriberMixin(ABC):
-    def __init__(self):
+    def __init__(self,host:str=None,secret_key:str=None):
         self.ctx = None
         self.socket = None
+        self.host=host
+        self.secret_key=secret_key
+
+    @classmethod
+    def check_secret_key(cls,host:str=None,secret_key:str=None):
+        if not host:
+            host = os.getenv("MIDDLEWARE_HOST", None)
+        if not host:
+            return True
+        if not secret_key:
+            secret_key=os.getenv("AITRADOS_SECRET_KEY",'')
+        from aitrados_api.trade_middleware_service.trade_middleware_identity import aitrados_api_identity as idt
+        try:
+            result = FrontendRequest.call_sync(
+                idt.backend_identity,
+                "get_all_online_backend_services",
 
 
+                timeout=5,# 单位秒
+                secret_key=secret_key,
+                host=host
+            )
+            if result["status"]=="invalid_secret_key":
+                logger.error(result["message"])
+                return False
+            return True
+        except:
+            return True
     @classmethod
     def _deserialize_response(cls, response: bytes) -> Any:
         try:
@@ -36,6 +64,8 @@ class AsyncSubscriberMixin(ABC):
         self.socket.connect(self.addr)
 
     def unsubscribe_topics(self, *topics):
+        if self.check_secret_key(self.host,self.secret_key)==False:
+            return
         if not self.socket or not self.ctx:
             return
         for topic in topics:
@@ -48,6 +78,8 @@ class AsyncSubscriberMixin(ABC):
             self.socket.setsockopt(zmq.UNSUBSCRIBE, topic)
 
     def subscribe_topics(self, *topics):
+        if self.check_secret_key(self.host,self.secret_key)==False:
+            return
         if not self.socket or not self.ctx:
             self._instance()
 

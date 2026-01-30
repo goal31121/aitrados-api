@@ -60,7 +60,7 @@ class CommAddressDetector(ABC):
         elif platform.system() != "Windows" and  peer_machine and peer_machine == cls._machine_id:
             cls._address_url = cls._intelligent_router_address.IPC
         else:
-            cls._address_url = cls._intelligent_router_address.TCP
+            cls._address_url = cls._intelligent_router_address.TCP.replace("0.0.0.0", "127.0.0.1")
         return cls._address_url
 
     @classmethod

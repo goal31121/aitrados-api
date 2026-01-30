@@ -1,6 +1,7 @@
 import time
 from loguru import logger
-
+from aitrados_api.common_lib.common import load_env_file
+load_env_file(file=None, override=True)
 from aitrados_api.common_lib.any_list_data_to_format_data import ApiListResultToFormatData2, AnyListDataToFormatData, \
     deserialize_multi_symbol_multi_timeframe_data
 from aitrados_api.common_lib.contant import SchemaAsset, IntervalName

@@ -2,8 +2,8 @@
 from abc import ABC
 from aitrados_api.trade_middleware.library.subscriber_mixin import AsyncSubscriberMixin
 class AsyncSubscriber(AsyncSubscriberMixin,ABC):
-    def __init__(self):
-        super().__init__()
+    def __init__(self,host:str=None,secret_key:str=None):
+        super().__init__(host=host,secret_key=secret_key)
     async def on_news(self, msg):
         """
          implement the method in your class

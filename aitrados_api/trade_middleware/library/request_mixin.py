@@ -1,6 +1,7 @@
 import enum
 import json
 import asyncio
+import os
 import threading
 import uuid
 import time
@@ -11,6 +12,8 @@ import zmq.asyncio
 from loguru import logger
 
 from aitrados_api.trade_middleware.client_adresss_detector import FrontendAddressDetector
+from aitrados_api.trade_middleware.intelligent_router_address import FrontendIntelligentRouterAddress, \
+    replace_middleware_tcp_address
 
 
 class AsyncFrontendRequestMixin:
@@ -39,7 +42,7 @@ class AsyncFrontendRequestMixin:
             return response.decode('utf-8')
 
     @classmethod
-    async def _create_temp_socket_async(cls, timeout: float = 10.0):
+    async def _create_temp_socket_async(cls, timeout: float = 10.0,host=None):
         """Create temporary async socket"""
         ctx = zmq.asyncio.Context()
         socket = ctx.socket(zmq.REQ)
@@ -52,14 +55,20 @@ class AsyncFrontendRequestMixin:
         identity = f"temp-{cls._generate_request_id()}".encode()
         socket.setsockopt(zmq.IDENTITY, identity)
 
-        addr = FrontendAddressDetector.get_cached_type()
+        if host:
+            addr=replace_middleware_tcp_address(host,FrontendIntelligentRouterAddress)
+        elif host:=os.getenv("MIDDLEWARE_HOST",None):
+            addr=replace_middleware_tcp_address(host,FrontendIntelligentRouterAddress)
+        else:
+            addr = FrontendAddressDetector.get_cached_type()
 
         socket.connect(addr)
+        #logger.debug(f"[Client] Connect to {addr}")
 
         return ctx, socket
 
     @classmethod
-    def _create_temp_socket_sync(cls, timeout: float = 10.0):
+    def _create_temp_socket_sync(cls, timeout: float = 10.0,host=None):
         """Create temporary sync socket"""
         ctx = zmq.Context()
         socket = ctx.socket(zmq.REQ)
@@ -72,16 +81,26 @@ class AsyncFrontendRequestMixin:
         identity = f"temp-{cls._generate_request_id()}".encode()
         socket.setsockopt(zmq.IDENTITY, identity)
 
-        addr = FrontendAddressDetector.get_cached_type()
+        if host:
+
+            addr=replace_middleware_tcp_address(host,FrontendIntelligentRouterAddress)
+        elif host:=os.getenv("MIDDLEWARE_HOST",None):
+            addr=replace_middleware_tcp_address(host,FrontendIntelligentRouterAddress)
+        else:
+            addr = FrontendAddressDetector.get_cached_type()
+
         socket.connect(addr)
+        logger.debug(f"[Client] Connect to {addr}")
 
         return ctx, socket
 
     @classmethod
     async def call_sync(cls, backend_identity: str, function_name: str | enum.Enum,
-                        *args, timeout: float = 10.0, **kwargs) -> Any:
+                        *args, timeout: float = 10.0,host=None,secret_key='', **kwargs) -> Any:
         """Synchronous call (block and wait for result)"""
-        ctx, socket = await cls._create_temp_socket_async(timeout)
+        ctx, socket = await cls._create_temp_socket_async(timeout,host)
+        if not secret_key:
+            secret_key=os.getenv("AITRADOS_SECRET_KEY",'')
 
         if isinstance(function_name, enum.Enum):
             function_name = function_name.value
@@ -93,8 +112,11 @@ class AsyncFrontendRequestMixin:
             # Send request: [empty, backend_identity, function_name, params]
             await socket.send_multipart([
                 backend_identity.encode(),
+
                 function_name.encode(),
-                params
+                params,
+                secret_key.encode(),
+
             ])
 
             # logger.debug(f"[Client] Send sync request: {backend_identity}.{function_name}")
@@ -140,7 +162,7 @@ AitradosTradeMiddlewareInstance.run_all()
 
     @classmethod
     def call_async(cls, backend_identity: str, function_name: str | enum.Enum,
-                   callback: Callable, *args, timeout: float = 10.0, **kwargs):
+                   callback: Callable, *args, timeout: float = 10.0,**kwargs):
         """Async call (handle result with callback)"""
         if isinstance(function_name, enum.Enum):
             function_name = function_name.value
@@ -170,15 +192,19 @@ AitradosTradeMiddlewareInstance.run_all()
 
     @classmethod
     def call_fire_and_forget(cls, backend_identity: str, function_name: str | enum.Enum,
-                             *args, **kwargs):
+
+                             *args,host=None, secret_key='',timeout: float = 10.0, **kwargs):
 
         """Fire and forget call (send without caring about result)"""
         if isinstance(function_name, enum.Enum):
             function_name = function_name.value
+        if not secret_key:
+            secret_key=os.getenv("AITRADOS_SECRET_KEY",'')
 
         def _thread_worker():
             """Execute send in independent thread"""
-            ctx, socket = cls._create_temp_socket_sync(timeout=5.0)  # Short timeout
+            ctx, socket = cls._create_temp_socket_sync(timeout=timeout,host=host)  # Short timeout
+
 
             try:
                 params = cls._serialize_params(*args, **kwargs)
@@ -187,7 +213,8 @@ AitradosTradeMiddlewareInstance.run_all()
                 socket.send_multipart([
                     backend_identity.encode(),
                     function_name.encode(),
-                    params
+                    params,
+                    secret_key.encode(),
                 ])
 
                 logger.debug(f"[Client] Send fire-and-forget request: {backend_identity}.{function_name}")
@@ -204,9 +231,12 @@ AitradosTradeMiddlewareInstance.run_all()
             except Exception as e:
                 logger.warning(f"[Client] Fire-and-forget request failed: {e}")
             finally:
-                # Clean up resources
-                socket.close()
-                ctx.term()
+                try:
+                    socket.setsockopt(zmq.LINGER, 0)
+                    socket.close()
+                    ctx.term()
+                except:
+                    pass
             return False
 
         return _thread_worker()

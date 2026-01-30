@@ -7,12 +7,6 @@ load_env_file(file=None,override=True)
 config = ClientConfig(
     secret_key=os.getenv("AITRADOS_SECRET_KEY","YOUR_SECRET_KEY"),
     timeout=30,
-    max_retries=1000,
-    rate_limit=RateLimitConfig(
-        daily_limit=100000,
-        requests_per_second=2,
-        requests_per_minute=30
-    ),
     debug=True
 )
 

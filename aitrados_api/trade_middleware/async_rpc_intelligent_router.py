@@ -12,7 +12,7 @@ from typing import Dict
 
 from aitrados_api.trade_middleware.client_adresss_detector import CommAddressDetector, IntelligentRouterContext
 from aitrados_api.trade_middleware.intelligent_router_address import FrontendIntelligentRouterAddress, \
-    BackendIntelligentRouterAddress, cleanup_sockets
+    BackendIntelligentRouterAddress, cleanup_sockets, check_middleware_internal_ip
 
 
 class AsyncRPCIntelligentRouter:
@@ -83,18 +83,42 @@ class AsyncRPCIntelligentRouter:
 
     async def _handle_frontend_request(self):
         msg = await self.frontend.recv_multipart()
+
         if len(msg) < 5:
             logger.warning(f"[RPC Frontend] Request format error: {msg}")
             return
 
         client_id, empty, backend_identity, function_name, params = msg[:5]
-        if function_name==b"get_all_online_backend_services":
-            data=self.get_all_online_backend_services()
-            await self.frontend.send_multipart([client_id, b"", backend_identity, function_name, data.encode()])
+
+
+
+
+
 
 
         backend_identity_str = backend_identity.decode()
 
+
+        # Preventing public network attacks
+        try:
+            last_endpoint = self.frontend.getsockopt(zmq.LAST_ENDPOINT)
+            #last_endpoint=b"tcp://12.25.26.25:12542"
+            if not check_middleware_internal_ip(last_endpoint):
+                secret_key=os.environ.get("AITRADOS_SECRET_KEY",'').encode()
+                temp_secret_key=msg[5]
+                if secret_key!=temp_secret_key:
+                    message = f"If accessing via the public network, the `secret_key` parameter must be added."
+                    data = ErrorResponse(code=429, message=message,status="invalid_secret_key").model_dump_json()
+                    await self.frontend.send_multipart([client_id, b"", backend_identity, function_name, data.encode()])
+                    return
+            #logger.debug(f"Client endpoint: {last_endpoint}")
+        except Exception as e:
+            logger.warning(f"Failed to get client address: {e}")
+
+        if function_name==b"get_all_online_backend_services":
+            data=self.get_all_online_backend_services()
+            await self.frontend.send_multipart([client_id, b"", backend_identity, function_name, data.encode()])
+            return
 
         target_id = self.tag_to_identity.get(backend_identity_str)
 

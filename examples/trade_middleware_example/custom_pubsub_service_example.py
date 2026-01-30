@@ -1,6 +1,7 @@
 import threading
 import time
-
+from aitrados_api.common_lib.common import load_env_file
+load_env_file(file=None, override=True)
 from aitrados_api.trade_middleware.publisher import async_publisher_instance
 """
 at first ,run "python run_trade_middleware_example.py"
@@ -30,7 +31,7 @@ def subscriber_client_example():
             print(test_sub_topic, msg)
             pass
 
-    subscriber = MyAsyncSubscriber()
+    subscriber = MyAsyncSubscriber(host=None,secret_key="123456")
     subscriber.run()
     subscriber.subscribe_topics(test_sub_topic)
 
